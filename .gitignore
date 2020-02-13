@@ -2,8 +2,8 @@
 venv/
 .idea/
 migrations
-*.sqlite3
 __pycache__/
+*.log
 *.py[cod]
 *$py.class
 

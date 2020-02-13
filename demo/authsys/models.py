@@ -7,8 +7,6 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser, AbstractBaseUser, PermissionsMixin, BaseUserManager, Group
 import jwt
 
-# from ..demo.settings import JWT_SECRET_KEY, JWT_EXPIRE_TIME
-
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY") or "ThisIsASecretKEY"
 JWT_EXPIRE_TIME = 60  # minutes
 
@@ -44,6 +42,7 @@ class UserManger(BaseUserManager):
         return self._create_user(username, password, **kwargs)
 
 
+# employee model
 class Emp(AbstractBaseUser, PermissionsMixin):
     UUID = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     empno = models.BigIntegerField(unique=True, db_index=True, max_length=50, null=False, help_text="employees' number")
@@ -55,7 +54,7 @@ class Emp(AbstractBaseUser, PermissionsMixin):
     date_joined = models.DateTimeField(auto_now_add=True)  # 加入时间
 
     USERNAME_FIELD = 'empno'  # 作为唯一认证标识， 如果不重写User模型则默认username
-    REQUIRED_FIELDS = ['username']  # 设置此属性会提示 username,telephone,password
+    REQUIRED_FIELDS = ['username']
     EMAIL_FIELD = 'email'  # 给指定用户发送邮件
 
     objects = UserManger()
@@ -95,14 +94,51 @@ class Org(models.Model):
     name = models.CharField(max_length=50, unique=True, db_index=True)
     type = models.CharField(max_length=50, choices=[(tag.name, tag.value) for tag in EmployeeType])
 
-# class Emp(models.Model):
-#     """
-#     Employee model
-#     """
-#     UUID = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-#     name = models.CharField(max_length=50, null=False, default='')
-#     empno = models.BigIntegerField(unique=True, db_index=True, max_length=50, null=False, help_text="employees' number")
 
-# class Meta:
-#     ordering = ['name']
+from django_celery_results.models import managers
 
+
+class TaskResult(models.Model):
+    """Task result/status."""
+
+    task_id = models.CharField(('task id'), max_length=255, unique=True)
+    task_name = models.CharField(('task name'), null=True, max_length=255)
+    task_args = models.TextField(('task arguments'), null=True)
+    task_kwargs = models.TextField(('task kwargs'), null=True)
+    # status = models.CharField(_('state'), max_length=50,
+    #                           default=states.PENDING,
+    #                           choices=TASK_STATE_CHOICES
+    #                           )
+    content_type = models.CharField(('content type'), max_length=128)
+    content_encoding = models.CharField(('content encoding'), max_length=64)
+    result = models.TextField(null=True, default=None, editable=False)
+    date_done = models.DateTimeField(('done at'), auto_now=True)
+    traceback = models.TextField(('traceback'), blank=True, null=True)
+    hidden = models.BooleanField(editable=False, default=False, db_index=True)
+    meta = models.TextField(null=True, default=None, editable=False)
+
+    objects = managers.TaskResultManager()
+
+    class Meta:
+        """Table information."""
+
+        ordering = ['-date_done']
+
+        verbose_name = ('task result')
+        verbose_name_plural = ('task results')
+
+    def as_dict(self):
+        return {
+            'task_id': self.task_id,
+            'task_name': self.task_name,
+            'task_args': self.task_args,
+            'task_kwargs': self.task_kwargs,
+            # 'status': self.status,
+            'result': self.result,
+            'date_done': self.date_done,
+            'traceback': self.traceback,
+            'meta': self.meta,
+        }
+
+    def __str__(self):
+        return '<Task: {0.task_id} ({0.status})>'.format(self)
